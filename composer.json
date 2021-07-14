@@ -1,0 +1,24 @@
+{
+  "name": "artfulrobot/csv",
+  "description": "CSV parser and generator libraries",
+  "type": "library",
+  "keywords": ["csv","php","parser"],
+  "homepage": "https://artfulrobot.uk",
+  "license": "GPL-3.0+",
+  "require": {
+    "php": ">=7.3"
+  },
+  "authors": [
+    {
+      "name": "Rich Lott",
+      "email": "forums@artfulrobot.uk",
+      "homepage": "https://artfulrobot.uk",
+      "role": "Developer"
+    }
+  ],
+  "autoload": {
+    "psr-0": {
+      "ArtfulRobot": "./"
+    }
+  }
+}

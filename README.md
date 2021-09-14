@@ -22,6 +22,11 @@ header row parameter to the parse method (default is 1).
 
 ## Change log
 
+- v1.2 Added ability to parse without any header row, and to define this later
+  either by passing in an array of headers, or by extracting headers from the
+  parsed data. Also fixed bug in getRowNumber() which was returning 1 too high.
+  Tests updated/added. More type hints added.
+
 - v1.1 Added two new features: (1) Ability to specify the header row from
   the source data (rows before this are skipped), and (2) Ability to parse
   from a string source. Tests have been written to cover the new features, and

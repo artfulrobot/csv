@@ -37,6 +37,8 @@ class CSVParser implements \Iterator {
 
   /**
    * Holds the data.
+   *
+   * This is indexed from 1.
    */
   protected $data;
 
@@ -51,7 +53,9 @@ class CSVParser implements \Iterator {
   protected $header_map;
 
   /**
-   * Holds current pointer
+   * Holds current pointer.
+   *
+   * 1 is the first row.
    */
   protected $current_row = 1;
 
@@ -96,28 +100,18 @@ class CSVParser implements \Iterator {
   /**
    * Returns count of rows
    */
-  public function count() {
+  public function count() :int {
     return (int) count($this->data);
   }
 
   /**
    * Open and parse an entire CSV file
    */
-  public function loadFromFile($filename, ?int $max_buffer_length = 0, ?int $headerRow = 1) {
+  public function loadFromFile(string $filename, ?int $max_buffer_length = 0, ?int $headerRow = 1) {
 
     // Parse CSV file
     $csv_file = fopen($filename, "r");
 
-    // Read $headerRow lines.
-    for ($n=0; $n<$headerRow; $n++) {
-      $row_data = fgetcsv($csv_file, $max_buffer_length, ",");
-      if ($row_data === FALSE) {
-        throw new \InvalidArgumentException("Failed to read a row of CSV from '$filename'");
-      }
-    }
-
-    // this row contains the headers.
-    $this->extractHeaders($row_data);
     // Load data
     $this->data = [];
     $row = 1;
@@ -127,6 +121,14 @@ class CSVParser implements \Iterator {
     }
     // tidy up
     fclose($csv_file);
+
+    if ($headerRow > 0) {
+      if ($headerRow > $this->count()) {
+        throw new \InvalidArgumentException("Failed to read $headerRow row(s) of CSV from '$filename'");
+      }
+      $this->extractHeaders($headerRow);
+    }
+
     $this->rewind();
     return $this;
   }
@@ -142,14 +144,6 @@ class CSVParser implements \Iterator {
     // This is taken from https://www.php.net/manual/en/function.str-getcsv.php#101888
     $data = str_getcsv($data, "\n");
 
-    // Take the header rows. The last one is the actual header row.
-    $headerRows = array_splice($data, 0, $headerRow);
-    $row_data = str_getcsv(end($headerRows), ',');
-    if ($row_data === FALSE) {
-      throw new \InvalidArgumentException("Failed to read a row of CSV from given data.");
-    }
-    $this->extractHeaders($row_data);
-
     // Load data
     $this->data = [];
     $row = 1;
@@ -158,15 +152,55 @@ class CSVParser implements \Iterator {
       $this->data[$row] = $row_data;
       $row++;
     }
+
+    if ($headerRow > 0) {
+      if ($headerRow > $this->count()) {
+        throw new \InvalidArgumentException("Failed to read $headerRow row(s) of CSV from '$filename'");
+      }
+      $this->extractHeaders($headerRow);
+    }
+
     return $this;
   }
 
-  protected function extractHeaders(array $row_data) {
-    // this row contains the headers.
-    $this->headers = $row_data;
-    $this->header_map = [];
-    foreach ($row_data as $i=>$_) {
+  /**
+   * Take headers from the given row (or current row), discard all rows up to
+   * that row from the parsed data.
+   */
+  public function extractHeaders(?int $row = NULL) :CSVParser {
 
+    // this row contains the headers.
+    if ($row !== NULL) {
+      $this->setRow($row);
+    }
+    if (!$this->valid()) {
+      throw new \InvalidArgumentException("Invalid current row; cannot extractHeaders.");
+    }
+
+    $this->setHeaders($this->data[$this->current_row]);
+    // Drop the rows, leaving one NULL entry at start.
+    array_splice($this->data, 0, $this->current_row, [NULL]);
+    // Re-index.
+    $this->data = array_values($this->data);
+    // Remove the null entry, leaving the other rows starting at offset 1.
+    unset($this->data[0]);
+
+    $this->rewind();
+    return $this;
+  }
+  /**
+   * Provide named headers.
+   *
+   * Typically this is set via extractHeaders from the data in the CSV file,
+   * but you may wish to set your own.
+   *
+   * @param array $headers
+   * @return this object
+   */
+  public function setHeaders($headers) :CSVParser {
+    $this->headers = $headers;
+    $this->header_map = [];
+    foreach ($this->headers as $i=>$_) {
       // Trim the header because leading/trailing spaces are pretty much always a mistake.
       $_ = trim($_);
       if ($_) {
@@ -176,11 +210,12 @@ class CSVParser implements \Iterator {
         $this->header_map[$_] = $i;
       }
     }
+    return $this;
   }
   /**
    * Factory method to create an object and load a file.
    */
-  public static function createFromFile($filename, $max_buffer_length = null, ?int $headerRow = 1) {
+  public static function createFromFile($filename, $max_buffer_length = null, ?int $headerRow = 1) :CSVParser {
     $csv_parser = new static();
     $csv_parser->loadFromFile($filename, $max_buffer_length, $headerRow);
     return $csv_parser;
@@ -189,7 +224,7 @@ class CSVParser implements \Iterator {
   /**
    * Factory method to create an object and load CSV from a string.
    */
-  public static function createFromString(string $data, ?int $headerRow = 1) {
+  public static function createFromString(string $data, ?int $headerRow = 1) :CSVParser {
     $csv_parser = new static();
     $csv_parser->loadFromString($data, $headerRow);
     return $csv_parser;
@@ -220,8 +255,10 @@ class CSVParser implements \Iterator {
       throw new \InvalidArgumentException("Row not found.");
     }
 
-    if ($col_number<0 || $col_number>=count($this->headers)) {
-      throw new \InvalidArgumentException("Column out of bounds.");
+    // If we have headers, use that as the expectation for the number of columns.
+    $maxCols = $this->headers ? count($this->headers) : count($this->data[$this->current_row]);
+    if ($col_number<0 || $col_number>$maxCols) {
+      throw new \InvalidArgumentException("Column $col_number out of bounds.");
     }
 
     if (!isset($this->data[$this->current_row][$col_number])) {
@@ -235,18 +272,20 @@ class CSVParser implements \Iterator {
    *
    * First row is row 1.
    */
-  public function setRow($row_number) {
+  public function setRow(int $row_number) :CSVParser {
     $row_number = (int) $row_number;
     if ($row_number < 1 || $row_number > $this->count()) {
       $this->row_number = FALSE;
       throw new \InvalidArgumentException("Row not found.");
     }
     $this->current_row = $row_number;
+
+    return $this;
   }
   /**
    * Returns an array of column headers.
    */
-  public function getHeaders() {
+  public function getHeaders() :array {
     return array_keys($this->header_map);
   }
   /**
@@ -256,7 +295,7 @@ class CSVParser implements \Iterator {
    *
    * @return NULL|Array
    */
-  public function getRowAsArray() {
+  public function getRowAsArray() :array {
     $_ = [];
     if ($this->valid()) {
       foreach ($this->header_map as $key => $index) {
@@ -273,6 +312,6 @@ class CSVParser implements \Iterator {
    * @return NULL|int
    */
   public function getRowNumber() {
-    return isset($this->data[$this->current_row]) ? $this->current_row + 1 : NULL;
+    return isset($this->data[$this->current_row]) ? $this->current_row : NULL;
   }
 }

@@ -52,11 +52,11 @@ class CSVParserTest extends \PHPUnit\Framework\TestCase {
     }
 
     /**
-     * @expectedException \InvalidArgumentException
-     * @expectedExceptionMessage Duplicate header name: Name
      */
     public function testDodgyHeaders()
     {
+      $this->expectException(\InvalidArgumentException::class);
+      $this->expectExceptionMessage('Duplicate header name: Name');
       $csv = new CSVParser();
       $csv->loadFromFile(dirname(__FILE__) . '/fixtures/testcase-3-dodgy-headers.csv');
     }

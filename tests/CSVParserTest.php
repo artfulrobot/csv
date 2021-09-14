@@ -15,6 +15,27 @@ class CSVParserTest extends \PHPUnit\Framework\TestCase {
     public function testBasicParse()
     {
       $csv = CSVParser::createFromFile(dirname(__FILE__) . '/fixtures/testcase-1.csv');
+      $this->basicParseAssertions($csv);
+    }
+
+    public function testBasicParseFromString()
+    {
+      $csv = file_get_contents(dirname(__FILE__) . '/fixtures/testcase-1.csv');
+      $csv = CSVParser::createFromString($csv);
+      $this->basicParseAssertions($csv);
+    }
+    public function testParseFileHeaderOnRow2()
+    {
+      $csv = CSVParser::createFromFile(dirname(__FILE__) . '/fixtures/testcase-4.csv', NULL, 2);
+      $this->basicParseAssertions($csv);
+    }
+    public function testParseStringHeaderOnRow2() {
+      $csv = file_get_contents(dirname(__FILE__) . '/fixtures/testcase-4.csv');
+      $csv = CSVParser::createFromString($csv, 2);
+      $this->basicParseAssertions($csv);
+    }
+    protected function basicParseAssertions($csv) {
+      $this->assertEquals(5, $csv->count());
       $i=0;
       $expectations = [['Rich',  40], ['Fred',  1000], ['Wilma',  0], ['',  56], ['Bam Bam', '']];
       foreach ($csv as $row) {

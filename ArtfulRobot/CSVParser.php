@@ -103,31 +103,21 @@ class CSVParser implements \Iterator {
   /**
    * Open and parse an entire CSV file
    */
-  public function loadFromFile($filename, $max_buffer_length=null) {
+  public function loadFromFile($filename, ?int $max_buffer_length = 0, ?int $headerRow = 1) {
 
-    if ($max_buffer_length===null) {
-      $max_buffer_length = 1000;
-    }
     // Parse CSV file
     $csv_file = fopen($filename, "r");
-    $row_data = fgetcsv($csv_file, $max_buffer_length, ",");
-    if ($row_data === FALSE) {
-      throw new \InvalidArgumentException("Failed to read a row of CSV from '$filename'");
-    }
-    // this row contains the headers.
-    $this->headers = $row_data;
-    $this->header_map = [];
-    foreach ($row_data as $i=>$_) {
 
-      // Trim the header because leading/trailing spaces are pretty much always a mistake.
-      $_ = trim($_);
-      if ($_) {
-        if (isset($this->header_map[$_])) {
-          throw new \InvalidArgumentException("Duplicate header name: $_");
-        }
-        $this->header_map[$_] = $i;
+    // Read $headerRow lines.
+    for ($n=0; $n<$headerRow; $n++) {
+      $row_data = fgetcsv($csv_file, $max_buffer_length, ",");
+      if ($row_data === FALSE) {
+        throw new \InvalidArgumentException("Failed to read a row of CSV from '$filename'");
       }
     }
+
+    // this row contains the headers.
+    $this->extractHeaders($row_data);
     // Load data
     $this->data = [];
     $row = 1;
@@ -142,11 +132,66 @@ class CSVParser implements \Iterator {
   }
 
   /**
+   * Parse an CSV string.
+   *
+   * NOTE: this might fail if Windows/Mac line endings are found.
+   */
+  public function loadFromString(string $data, ?int $headerRow = 1) {
+
+    // Parse the string into rows first.
+    // This is taken from https://www.php.net/manual/en/function.str-getcsv.php#101888
+    $data = str_getcsv($data, "\n");
+
+    // Take the header rows. The last one is the actual header row.
+    $headerRows = array_splice($data, 0, $headerRow);
+    $row_data = str_getcsv(end($headerRows), ',');
+    if ($row_data === FALSE) {
+      throw new \InvalidArgumentException("Failed to read a row of CSV from given data.");
+    }
+    $this->extractHeaders($row_data);
+
+    // Load data
+    $this->data = [];
+    $row = 1;
+    foreach ($data as $row_data) {
+      $row_data = str_getcsv($row_data, ',');
+      $this->data[$row] = $row_data;
+      $row++;
+    }
+    return $this;
+  }
+
+  protected function extractHeaders(array $row_data) {
+    // this row contains the headers.
+    $this->headers = $row_data;
+    $this->header_map = [];
+    foreach ($row_data as $i=>$_) {
+
+      // Trim the header because leading/trailing spaces are pretty much always a mistake.
+      $_ = trim($_);
+      if ($_) {
+        if (isset($this->header_map[$_])) {
+          throw new \InvalidArgumentException("Duplicate header name: $_");
+        }
+        $this->header_map[$_] = $i;
+      }
+    }
+  }
+  /**
    * Factory method to create an object and load a file.
    */
-  public static function createFromFile($filename, $max_buffer_length = null) {
+  public static function createFromFile($filename, $max_buffer_length = null, ?int $headerRow = 1) {
     $csv_parser = new static();
-    $csv_parser->loadFromFile($filename, $max_buffer_length);
+    $csv_parser->loadFromFile($filename, $max_buffer_length, $headerRow);
+    return $csv_parser;
+  }
+
+  /**
+   * Factory method to create an object and load CSV from a string.
+   */
+  public static function createFromString(string $data, ?int $headerRow = 1) {
+    $csv_parser = new static();
+    $csv_parser->loadFromString($data, $headerRow);
     return $csv_parser;
   }
 

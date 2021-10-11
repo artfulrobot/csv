@@ -22,6 +22,9 @@ header row parameter to the parse method (default is 1).
 
 ## Change log
 
+- v.12.1 New feature: Added TSV file parsing capabilities. Also see tsv2csv
+  command line utility.
+
 - v1.2 Added ability to parse without any header row, and to define this later
   either by passing in an array of headers, or by extracting headers from the
   parsed data. Also fixed bug in getRowNumber() which was returning 1 too high.

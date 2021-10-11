@@ -134,6 +134,49 @@ class CSVParser implements \Iterator {
   }
 
   /**
+   * Open and parse an entire TSV file
+   */
+  public function loadFromTSVFile(string $filename, ?int $max_buffer_length = NULL, ?int $headerRow = 1) {
+
+    // Parse CSV file
+    $tsv_file = fopen($filename, "r");
+
+    // Load data
+    $this->data = [];
+    $row = 1;
+
+    $importRow = function($row_data) use (&$row) {
+      $row_data = rtrim($row_data, "\r\n\0\x0B");
+      $this->data[$row] = explode("\t", $row_data);
+      $row++;
+    };
+
+    // For some reason fgets does not accept NULL; treats it as 0, so we need 2 loops.
+    if ($max_buffer_length === NULL) {
+      while (($row_data = fgets($tsv_file)) !== FALSE) {
+        $importRow($row_data);
+      }
+    }
+    else {
+      while (($row_data = fgets($tsv_file, $max_buffer_length)) !== FALSE) {
+        $importRow($row_data);
+      }
+    }
+    // tidy up
+    fclose($tsv_file);
+
+    if ($headerRow > 0) {
+      if ($headerRow > $this->count()) {
+        throw new \InvalidArgumentException("Failed to read $headerRow row(s) of CSV from '$filename'");
+      }
+      $this->extractHeaders($headerRow);
+    }
+
+    $this->rewind();
+    return $this;
+  }
+
+  /**
    * Parse an CSV string.
    *
    * NOTE: this might fail if Windows/Mac line endings are found.
@@ -213,11 +256,26 @@ class CSVParser implements \Iterator {
     return $this;
   }
   /**
+   * Convert back to CSV string.
+   */
+  public function toCSVString() :string {
+    return CSV::arrayToCsv($this->data, $this->getHeaders());
+  }
+  /**
    * Factory method to create an object and load a file.
    */
   public static function createFromFile($filename, $max_buffer_length = null, ?int $headerRow = 1) :CSVParser {
     $csv_parser = new static();
     $csv_parser->loadFromFile($filename, $max_buffer_length, $headerRow);
+    return $csv_parser;
+  }
+
+  /**
+   * Factory method to create an object and load a file.
+   */
+  public static function createFromTSVFile($filename, $max_buffer_length = null, ?int $headerRow = 1) :CSVParser {
+    $csv_parser = new static();
+    $csv_parser->loadFromTSVFile($filename, $max_buffer_length, $headerRow);
     return $csv_parser;
   }
 

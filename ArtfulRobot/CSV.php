@@ -81,10 +81,15 @@ class CSV
 		return $csv;
 	}
   /**
-   * outputs array to csv string.
+   * Return a CSV string for an array of row arrays.
+   *
+   * Note: assumes each row of the array is in the same order.
    *
    * @param array $result
-   * @param bool|array false: no headers; true: key headers; array: alt. headers
+   * @param bool|array
+   * - false: no header;
+   * - true:  Use keys from first row as headers
+   * - array: alternative headers
    *
    * @return string|null
    */
